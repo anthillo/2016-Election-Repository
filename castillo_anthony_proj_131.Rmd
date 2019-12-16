@@ -1,0 +1,576 @@
+---
+title: "castillo_anthony_proj_131"
+author: "Anthony Castillo"
+date: "12/5/2019"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+---
+
+1)  Voter data can be hard to predict because data gathered for measuring how voters 
+view candidates and ballot measures is usually deeply inaccurate. Between faulty 
+polling methodologies (ie - pollsters contacting voters using only landlines, and 
+thus contacting only older voters), terrible wording of questions, and polling 
+agencies with a political agendy in mind, it's a wonder that people take polls 
+seriously. In addition, people may lie to a pollster to evade facing judgement, or 
+may even experience a change of heart in political opinion altogether from between 
+the polling and actual voting times. Thus, it becomes really difficult to predict 
+voter data.
+
+2)  Part of what went right for Nate Silver in 2012 was actually the Republican Party
+and the US economy going through some structural changes at the time. Namely, the GOP
+was in the middle of the Tea Party movement, and thus was moving to the right on many
+issues. Inconveniently for the Tea Party, Romney, one of the last few moderates in
+the GOP (he was actually pro-choice in his Senate run back in the 90s) got the
+nomination after Speaker Gingrich, Senator Santorum, and Congressman Paul all were
+defeated in the 2012 GOP primary. The GOP base (the Tea Party) was disgruntled by
+this even though the economy had not recovered from the '08 recession. President
+Obama had 4 years to produce change and benefits for the American people who were
+effected by the recession and failed in the eyes of many, and thus many within the
+media establishment weren't sure on Obama winning re-eleciton. Thus, Romney blew
+millions of dollars surrounding himself with focus groups and media consultants who
+reassured him the presidency was his, and there wasn't much he had to do about it.
+Little did Romney know that national polling means little in a presidential election,
+and that because of the structure of the Electoral College, state polling is largely
+what counts.
+
+  By relating voter opinion to time on a state-by-state basis, Nate Silver was able
+to predict every single state in the 2012 election. Mixing Bayes' Theorem,
+hierarchical modelling, and graph theory, Nate Silver was able to successfully
+predict the 2012 election with ease. It largely revolved around centering his
+predictions on how Ohio was going to vote. In political terms, the Democrats hadn't
+yet lost the support of the white working class that voted Trump in 2016, and this
+demographic can be seen primarily in the Rust Belt. Romney, being a white-collar
+financier, wouldn't have the appeal unionists in the then-relevant Obama coalition
+had to those voters. Thus, by Obama winning Ohio, he likely would have also made the
+appeal to win the swing states necessary for 270 votes in the electoral college.
+  
+3)  Actually, nothing went wrong in 2016. The Obama coalition no longer exists, the
+white working class in the Rust Belt felt cheated by the neoliberal globalism pushed
+by 2nd-term Obama, and then-candidate Trump simply capitalized on Obama's failures as
+president and Secretary Clinton's failures as America's top diplomat. Simply put,
+Trump saw an opportunity to push his more paleoconservative/nationalist platform
+through appealing to the American heartland while maintaining appeal to the religious
+right, the remnants of the Tea Party, and any Senator Sanders supporters who were
+disillusioned by the 2016 Democratic primary. I would go as far as say that Trump may
+have even won in 2012 had he run then, and my evidence is the fact that Obama won
+2012 by only 64 electoral votes scattered across four swing states: Florida, Ohio,
+Virginia, and New Hampshire. I researched the actual voting margins and found Romney
+only needed 429,464 votes across these four states to win the 270 electoral votes for
+the presidency. Trump added 2 million votes to the GOP column with Florida and the
+Rust Belt making up the Electoral College difference. Moreover, I am one of the few
+people you will ever meet that called the 2016 election well before it happened.
+
+  Polling can be made better by divorcing itself from all biases and policy agendas
+and instead diversifying outreach to voters. This means issuing polls by email or
+cell phone call. I do not think this will happen, and thus the actual predictions
+themselves can be made better if we focus more on state-wide sentiments as it
+pertains to major policy issues. I do see the Sun Belt coming into play in the near
+future, and I think we can experiment there by testing analytics methods for
+unstructured data likely voters may yield while on the Internet (ie - scraping
+keystroke and page visit time data from whatever API is relevant).
+  
+```{r}
+
+library(dplyr)
+library(readr)
+library(knitr)
+library(kableExtra)
+
+## read data and convert candidate from string to factor
+election.raw <- read_delim("election.csv", delim = ",") %>% 
+  mutate(candidate=as.factor(candidate))
+
+census_meta <- read_delim("metadata.csv", delim = ";", col_names = FALSE) 
+census <- read_delim("census.csv", delim = ",") 
+
+kable(election.raw %>% filter(county == "Los Angeles County"))  %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+  full_width=FALSE)
+```
+
+4)  We exclude fips = 2000 because it is a duplicate for Arkansas, and thus are 
+unncecessary. We are then left with the following dimensions for election.raw.
+```{r}
+
+# 4
+
+election.raw <- filter(election.raw, fips != 2000)
+
+dim(election.raw)
+
+# 18345 observations, 5 columns
+```
+
+5) This is just us filtering our data   
+```{r}
+
+# 5
+
+election <- filter(election.raw, !is.na(county))
+election_federal <- filter(election.raw, fips == "US")
+election_state <- filter(election.raw, fips != "US" & is.na(county)) 
+election <- rbind(election, election_state[309:312,])
+```
+
+6) Here, we have total population vote count for all candidates.
+```{r}
+
+# 6
+
+Candidate_Votes <- (election_federal %>% select(candidate, votes))
+
+Candidate_Votes <- Candidate_Votes[order(Candidate_Votes$votes),]
+
+candidate.ordered <-  factor(Candidate_Votes$candidate, levels =
+                               as.vector(Candidate_Votes$candidate))
+
+library(ggplot2)
+
+Candidate_Votes <- Candidate_Votes %>% mutate(percentage = votes/sum(votes), 
+                                              candidate = candidate.ordered) 
+ggplot(Candidate_Votes, aes(candidate, percentage)) + 
+  geom_col(fill = c(rep("black", times = nrow(Candidate_Votes) - 2), "red", "blue")) +
+  coord_flip() + labs(title = "2016 U.S. Presidential Election Candidate Votes", 
+                      x = "Candidate", y = "Share of Votes by Percentage") +
+  geom_text(aes(label=votes), size = 3, nudge_y = 0.04, nudge_x = 0.08) +
+  guides("Legend", nrow = 3, ncol = 2 )
+```
+
+7) Here, we create our county_winner and state_winner objects (no output).
+```{r}
+
+# 7
+
+county.group <- group_by(election, fips)
+total.group <- dplyr::summarize(county.group, total = sum(votes))
+count.group <- left_join(county.group, total.group, by = "fips")
+county.pct <- mutate(count.group, pct = votes/total)       
+county_winner <- top_n(county.pct, n =1)
+
+state.group <- group_by(election_state, state)
+total.stqte <- dplyr::summarize(state.group, total = sum(votes))
+join.state <- left_join(state.group, total.stqte, by = "state")
+state.pct <- mutate(join.state, pct = votes/total)
+state_winner <- top_n(state.pct, n= 1)
+```
+
+This is our state map.
+```{r}
+
+states <- map_data("state")
+
+ggplot(data = states) + 
+  geom_polygon(aes(x = long, y = lat, fill = region, group = group), color = "white") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)  # color legend is unnecessary and takes too long
+```
+
+8) This is our county map.
+```{r}
+
+# 8
+
+county = map_data("county")
+
+ggplot(data = county) + 
+  geom_polygon(aes(x = long, y = lat, fill = subregion, group = group), color = 
+                 "white") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)  # color legend is unnecessary and takes too long
+```
+
+9) This is the state map in accordance with the candidate that won each state in the 
+2016 presidential election.
+```{r}
+
+# 9
+
+states = map_data("state")
+fips = state.abb[match(states$region, casefold(state.name))]
+states$region <- fips
+new <- left_join(states, state_winner, by = c("region" = "fips" ))
+
+ggplot(data = new) + 
+  geom_polygon(aes(x = long, y = lat, fill = candidate, group = group), color =
+               "white") + 
+  coord_fixed(1.3)+
+  ggtitle("Map of Winning Candidate by State")+
+  labs(y="Latitude", x = "Longitude")+
+  guides(fill=guide_legend(title="Candidate"))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+10) Here, we create our fips field for county. I then threw in a plot showing county-
+by-county results for the election on a visual basis.
+```{r}
+
+# 10
+
+county = map_data("county")
+county.str <- maps::county.fips
+y <- unlist(strsplit(county.str$polyname, ","))
+
+region <- NULL
+subregion <-  NULL
+
+for(i in seq(1,length(y), by = 2)){
+  region <- c(region, y[i])}
+
+for(i in seq(2,length(y), by = 2)){
+  subregion <- c(subregion, y[i])}
+
+county.str <- cbind(county.str, region)
+county.str <- cbind(county.str, subregion)
+county.str <- county.str[,c(1,3,4)]
+
+county <- left_join(county, county.str, by = c("region","subregion"))
+county$fips <- as.factor(county$fips)
+county <- left_join(county, county_winner, by = "fips")
+
+ggplot(data = county) + 
+  geom_polygon(aes(x = long, y = lat, fill = candidate, group = group), color = 
+                 "white") + 
+  coord_fixed(1.3)+
+  ggtitle("Map of Winning Candidate by County")+
+  labs(y="Latitude", x = "Longitude")+
+  guides(fill=guide_legend(title="Candidate"))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_path(aes(x = states$long, y = states$lat, group = group), data = states , 
+            colour = "black")
+```
+
+11) This visual is actually really simple. All it shows is average income by state.
+```{r}
+
+# 11
+
+plot.10 <- na.omit(census)
+plot.10 <- plot.10 %>% group_by(State) %>% add_tally(TotalPop)
+plot.10 <- cbind(plot.10, Weight = plot.10$TotalPop/plot.10$n )
+plot.10 <- plot.10 %>% group_by(State) %>% summarise_at(vars(Income), funs(sum(. * Weight)))
+ggplot(plot.10, aes(x=State, y=Income)) + geom_bar(stat = "identity") + coord_flip()
+```
+
+12) Here we cleaned our data and created census.del, census.subct, and census.ct.
+```{r}
+
+# 12
+
+census.del <- census
+census.del <- census.del[complete.cases(census.del),]
+census.del <- census.del %>% 
+  mutate(Men = 100*Men/TotalPop, 
+          Employed = 100*Employed/TotalPop,
+          Citizen = 100*Citizen/TotalPop)
+census.del <- census.del %>% mutate(Minority = 
+              Hispanic + Black + Native + Asian +  Pacific) %>% 
+              select(-Hispanic, -Black, -Native, -Asian, -Pacific)
+census.del <- census.del[c(1:7, ncol(census.del), 8:(ncol(census.del)-1))]
+census.del <- select(census.del, -Walk, -PublicWork, -Construction)
+census.del <- census.del %>% select(-Women,-White)
+head(census.del)
+
+
+census.subct <- group_by(census.del, State, County)
+census.subct <- add_tally(census.subct)
+names(census.subct)[ncol(census.subct)] <- "CountyTotal"
+census.subct <- mutate(census.subct, CountyWeight = TotalPop/CountyTotal)
+head(census.subct)
+
+census.ct <- census.subct
+CountyWeightSum <- summarise_at(census.ct, .funs = funs(sum), .vars = 
+                                  vars("CountyWeight"))
+names(CountyWeightSum)[ncol(CountyWeightSum)] <- "CountyWeightSum"
+census.ct <- left_join(census.ct,CountyWeightSum , by = c("State", "County"))
+census.ct <- mutate(census.ct, CountyWeight = CountyWeight/CountyWeightSum)
+census.ct <- select(census.ct, -CountyWeightSum, - CountyTotal)
+census.ct[5:28] <- census.ct[5:28]*census.ct$CountyWeight
+census.ct <- census.ct %>% summarise_at(vars(TotalPop:Unemployment), funs(sum))
+census.ct <- ungroup(census.ct)
+head(census.ct)
+```
+
+13) From the first principle component, the three features that have the largest absolute values for  principle component are: IncomePerCap, Income, and ChildPoverty (for county); and the same for sub-county. Minority, Poverty, ChildPoverty, Professional, Service, Drive, OtherTransp, WorkAtHome, MeanCommute, Employed, SelfEmployed, FamilyWork, and Unemployment all have opposite signs.
+```{r}
+
+# 13
+
+numericcensus.ct=select(ungroup(census.ct), -State, -County)
+ct.pc=prcomp(scale(numericcensus.ct))
+ct.pc2=ct.pc$rotation[,c(1,2)]
+ct.pc2
+ 
+numericcensus.subct=select(ungroup(census.subct), -County , -State)
+subct.pc=prcomp(scale(numericcensus.subct))
+subct.pc2=ct.pc$rotation[,c(1,2)]
+subct.pc2
+```
+
+14) I count 12 FALSE and 13 TRUE for numericccensus.ct and 15 FALSE and 11 TRUE for numericcensus.subct, and that should tell us how many principal components are needed to capture 90% of the variance.
+```{r}
+
+# 14
+
+tcp <- prcomp(numericcensus.ct[-1], center = T , scale. = T)
+tcp.sum <- summary(tcp)
+tcp.sum$importance[3,] >= .9
+plot(tcp.sum$importance[2,], type="l")
+
+tcp <- prcomp(numericcensus.subct[-1], center = T , scale. = T)
+tcp.sum <- summary(tcp)
+tcp.sum$importance[3,] >= .9
+plot(tcp.sum$importance[2,], type="l")
+```
+
+15) I know this is the old question 15, but I'm too lazy to change it. So please take
+it for what it is. Thanks!
+```{r}
+
+# 15
+
+cpa <- prcomp(census.ct[,c(-1,-2)], scale. = T, center = T)
+dist.cpa <-  dist(cpa$x, method = "euclidean")
+hc.c.all <- hclust(dist.cpa, method = "complete")
+pca <- cutree(hc.c.all, k = 10)
+
+cp5 <- prcomp(census.ct[,c(-1,-2)], scale. = T, center = T)
+dist.cp5 <-  dist(cp5$x[,c(1:2)], method = "euclidean")
+hc.c.5 <- hclust(dist.cp5, method = "complete")
+partition.c.5 <- cutree(hc.c.5, k = 10)
+ 
+psm.all <-  (cpa$x %*% cpa$rotation) %*% t(cpa$rotation)
+psm.all <- as.data.frame(cbind(psm.all,pca))
+acall <- 
+  as.matrix(rbind(colMeans(census.ct[which(psm.all$pca == 
+  pca[which(census.ct[,2] == "San Mateo")]),][-c(1,2)]), 
+  colMeans(census.ct[-c(1,2)])))
+
+Average <- c("San Mateo Cluster", " Total")
+acall <- as.data.frame(cbind(Average , acall))
+psm.5 <- (cp5$x %*% cp5$rotation) %*% t(cp5$rotation)
+psm.5 <- as.data.frame(cbind(psm.5, partition.c.5))
+ac5 <- 
+  as.matrix(rbind(colMeans(census.ct[which(psm.5$partition.c.5 == 
+  partition.c.5[which(census.ct[,2] == "San Mateo")]),][-c(1,2)]), 
+  colMeans(census.ct[-c(1,2)])))
+
+ac5 <- as.data.frame(cbind(Average , ac5))
+acall
+ac5
+```
+
+```{r}
+
+tmpwinner <- county_winner %>% ungroup %>%
+  mutate(state = state.name[match(state, state.abb)]) %>%    
+  mutate_at(vars(state, county), tolower) %>%                
+  mutate(county = gsub(" county| columbia| city| parish", "", county)) 
+                                                                          
+tmpcensus <- census.ct %>% mutate_at(vars(State, County), tolower)
+
+election.cl <- tmpwinner %>%
+  left_join(tmpcensus, by = c("state"="State", "county"="County")) %>% 
+  na.omit
+
+election.meta <- election.cl %>% select(c(county, fips, state, votes, pct, total))
+
+election.cl = election.cl %>% select(-c(county, fips, state, votes, pct, total))
+
+set.seed(10) 
+n <- nrow(election.cl)
+in.trn <- sample.int(n, 0.8*n) 
+trn.cl <- election.cl[ in.trn,]
+tst.cl <- election.cl[-in.trn,]
+
+set.seed(20) 
+nfold <- 10
+folds <- sample(cut(1:nrow(trn.cl), breaks=nfold, labels=FALSE))
+
+calc_error_rate = function(predicted.value, true.value){
+  return(mean(true.value!=predicted.value))
+}
+
+# this adjustment is for later... just bear with me (it's number 20)
+records = matrix(NA, nrow=5, ncol=2)
+colnames(records) = c("train.error","test.error")
+rownames(records) = c("tree","logistic","lasso","knn","lda")
+```
+
+16) From what I can gather from this tree, Transit, Minority, TotalPop, Professional, and Income are the best predictors for this decision tree. As the story goes, while the professionals
+```{r}
+
+# 16
+
+library(tree)
+library(maptree)
+
+candidate.tree <- tree(candidate ~ ., data = trn.cl)
+cv <- cv.tree(candidate.tree, rand = folds, FUN = prune.misclass, K = nfold)
+min.dev <- min(cv$dev)
+best.size.cv <- cv$size[which(cv$dev == min.dev)]
+draw.tree(candidate.tree, cex = 0.55)
+tree.pruned <- prune.misclass(candidate.tree, best = best.size.cv)
+draw.tree(tree.pruned, cex = 0.5)
+
+tree.train <- predict(tree.pruned, trn.cl, type = "class")
+tree.test <- predict(tree.pruned, tst.cl, type = "class")
+records[1,1] <- calc_error_rate(tree.train, trn.cl$candidate)
+records[1,2] <- calc_error_rate(tree.test, tst.cl$candidate)
+records
+```
+
+17) See below for the significant variables. No, this isn't entirely consistent with
+what we got out of the decision tree model. One of the variables that is rated 
+differently is TotalPop, and I think it has to do with the fact that a decision tree 
+might not be the best model in extrapolating insights for a variable concerning the 
+entire populace and not just a segment of it.
+```{r}
+
+# 17
+
+logmodel <- glm(candidate ~ ., data = trn.cl, family = "binomial")
+summary(logmodel)
+logpred <- predict(logmodel, trn.cl, type = "response")
+trn.cl <- trn.cl %>% mutate(candidate = as.factor(ifelse(candidate == "Donald Trump",
+                          "Donald Trump", "Hillary Clinton")))
+
+library(ROCR)
+
+logprediction <- prediction(logpred, trn.cl$candidate)
+
+fpr.train = performance(logprediction, "fpr")@y.values[[1]]
+cutoff.train <- performance(logprediction, "fpr")@x.values[[1]]
+
+fnr.train <- performance(logprediction, "fnr")@y.values[[1]]
+
+train.rate <- as.data.frame(cbind(Cutoff = cutoff.train, FPR = fpr.train, FNR =
+                                    fnr.train))
+
+train.rate$distance <- sqrt((train.rate[,2]^2) + (train.rate[,3])^2)
+index = which.min(train.rate$distance)
+best = train.rate$Cutoff[index]
+
+trn.cl.pred <- trn.cl %>% mutate(predCandidate =
+as.factor(ifelse(logpred <= best, "Donald Trump", "Hillary Clinton")))
+
+trainerror <- calc_error_rate(trn.cl.pred$candidate, 
+                                        trn.cl.pred$predCandidate)
+
+logistic.test.predict <- predict(logmodel, tst.cl, type = "response")
+
+tst.cl <- tst.cl %>% mutate(candidate = as.factor(ifelse(candidate == "Donald Trump",
+                            "Donald Trump", "Hillary Clinton")))
+
+tst.cl.pred <- tst.cl %>% mutate(predCandidate =
+as.factor(ifelse(logistic.test.predict <= best, "Donald Trump", "Hillary Clinton")))
+
+testerror <- calc_error_rate(tst.cl.pred$candidate,
+                                       tst.cl.pred$predCandidate)
+
+records[2,1] = trainerror
+records[2,2] = testerror
+records
+```
+
+18) The optimal value of lambda is .001, and its non-zero coefficients are as listed
+below in the output. 
+```{r}
+
+# 18
+
+library(glmnet)
+trn.cl = na.omit(trn.cl)
+x=model.matrix(candidate~., election.cl)[,-1]
+y1=trn.cl$candidate
+y2=tst.cl$candidate
+ychar=as.character(election.cl$candidate)
+grid=c(1,5,10,50) * 1e-4
+
+cvlasso = cv.glmnet(x[in.trn,], ychar[in.trn], lambda=grid,
+                    alpha=1, family='binomial', foldid=folds)
+bestlambda = cvlasso$lambda.min
+bestlambda
+
+model = glmnet(x[in.trn,], ychar[in.trn], alpha=1, family='binomial')
+lassocoef = predict(model, type='coefficients', s=bestlambda)
+lassocoef
+
+lassotrain = predict(model, s=bestlambda, newx=x[in.trn,], type='class')
+lassotest = predict(model, s=bestlambda, newx=x[-in.trn,], type='class')
+
+records[3,1] = calc_error_rate(lassotrain, y1)
+records[3,2] = calc_error_rate(lassotest, y2)
+records
+
+```
+
+19) Yeah... couldn't figure it out. Sorry.
+```{r}
+
+# 19
+
+# Ok, don't mind that I just didn't do 19 since I couldn't figure it out in time.
+```
+
+20) Here, I wanted to test errors for Kth nearnest neighbor and linear discrimination
+analysis. As you can see, LDA outperforms both KNN and logistic regression, and thus
+should be considered a top candidate for model selection. While it does have the
+worst test error, it does train better than every other model, which can actually be
+really useful depending on what you are looking for. Thus, this concludes my 2016
+elections analysis, and I would like to thank the professor for providing the
+requesite materials necessary to complete this project.
+```{r}
+
+# 20
+
+library(class)
+
+k.test = c(1, seq(10, 50, length.out = 9))
+
+do.chunk <- function(chunkid, folddef, Xdat, Ydat, k){
+  train = (folddef!=chunkid)
+  Xtr = Xdat[train,]
+  Ytr = Ydat[train]
+  Xvl = Xdat[!train,]
+  Yvl = Ydat[!train]
+
+  predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+  predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+
+  data.frame(train.error = calc_error_rate(predYtr, Ytr),
+  val.error = calc_error_rate(predYvl, Yvl))
+}
+
+K_Errors <- tibble("K" = k.test, "AveTrnError" = NA, "AveTstError" = NA)
+predictors <- select(trn.cl, -candidate)
+
+for(i in 1:10){
+  temp <- plyr::ldply(1:10, do.chunk, folds,predictors, trn.cl$candidate,
+                    K_Errors$K[i])
+  K_Errors$AveTrnError[i] <- mean(temp[,1])
+  K_Errors$AveTstError[i] <- mean(temp[,2])
+}
+
+pred.Train = knn(train=tst.cl[,2:26], test=tst.cl[,2:26], 
+                 cl=tst.cl$candidate, k=10)
+erate.train <- calc_error_rate(pred.Train, trn.cl$candidate)
+
+pred.Test = knn(train=trn.cl[,2:26], test=trn.cl[,2:26], 
+                cl=trn.cl$candidate, k=10)
+erate.test <- calc_error_rate(pred.Test, tst.cl$candidate)
+
+records[4,] <- c(erate.train, erate.test)
+
+tcl <- MASS::lda(candidate ~ . , data = trn.cl)
+
+trainlda <- predict(tcl, trn.cl)$class
+
+testlda <- predict(tcl, tst.cl)$class
+
+records[5,1] <- calc_error_rate(trainlda, trn.cl$candidate)
+records[5,2] <- calc_error_rate(testlda, tst.cl$candidate)
+
+records
+```
+
