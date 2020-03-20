@@ -323,8 +323,7 @@ tcp.sum$importance[3,] >= .9
 plot(tcp.sum$importance[2,], type="l")
 ```
 
-15) I know this is the old question 15, but I'm too lazy to change it. So please take
-it for what it is. Thanks!
+15) Here is the model for San Mateo
 ```{r}
 
 # 15
@@ -505,15 +504,7 @@ records
 
 ```
 
-19) Yeah... couldn't figure it out. Sorry.
-```{r}
-
-# 19
-
-# Ok, don't mind that I just didn't do 19 since I couldn't figure it out in time.
-```
-
-20) Here, I wanted to test errors for Kth nearnest neighbor and linear discrimination
+19) Here, I wanted to test errors for Kth nearnest neighbor and linear discrimination
 analysis. As you can see, LDA outperforms both KNN and logistic regression, and thus
 should be considered a top candidate for model selection. While it does have the
 worst test error, it does train better than every other model, which can actually be
@@ -522,7 +513,7 @@ elections analysis, and I would like to thank the professor for providing the
 requesite materials necessary to complete this project.
 ```{r}
 
-# 20
+# 19
 
 library(class)
 
